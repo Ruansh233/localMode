@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "localMode"
+authors = [
+    {name = "Shenhui_Ruan", email = "shenhui.ruan@kit.edu"}
+]
+description = "A py package to create local modes for local ROMs."
+version = "0.0.1"
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+    "numpy",
+    "scipy",
+    "foamToPython @ git+https://github.com/Ruansh233/foamToPython.git",
+    "PODImodels @ git+https://github.com/Ruansh233/PODImodels.git"
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
