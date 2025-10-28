@@ -43,11 +43,11 @@ class faceMode:
             raise ValueError("POD_algo must be 'eigen' or 'svd'.")
 
         self.fields = self.readFields(self.fileName, self.dataType)
-        self.boundaryModes, self.sv, self.coeffs = self.boundaryMode(
+        self.boundaryModes, self.sv, self.boundaryCoeffs = self.boundaryModes(
             self.fields, self.POD_algo
         )
         self.cellCoeffs = self.readCellCoeffs(self.cellCoffsFile)
-        self.cellModes = self.cellMode(self.fields, self.cellCoeffs)
+        self.cellBasedModes = self.cellBasedModes(self.fields, self.cellCoeffs)
 
     @staticmethod
     def readFields(fileName: list[str], dataType: str) -> np.ndarray:
@@ -64,7 +64,7 @@ class faceMode:
         Returns
         -------
         np.ndarray
-            The read fields.
+            The read fields. Each row corresponds to one field.
         """
 
         fields = []
@@ -78,7 +78,7 @@ class faceMode:
         return np.array(fields)
 
     @staticmethod
-    def boundaryMode(field: np.ndarray, POD_algo: str) -> np.ndarray:
+    def boundaryModes(field: np.ndarray, POD_algo: str) -> np.ndarray:
         """
         Compute the boundary modes.
 
@@ -91,8 +91,12 @@ class faceMode:
 
         Returns
         -------
-        np.ndarray
+        modes : np.ndarray
             The computed boundary modes.
+        sv : np.ndarray
+            The singular values.
+        coeffs : np.ndarray
+            The POD coefficients.
         """
 
         return PODmodes.reduction(field, POD_algo)
@@ -110,13 +114,13 @@ class faceMode:
         Returns
         -------
         np.ndarray
-            The read cell coefficients.
+            The read cell coefficients. Each row corresponds to a set of coefficients for one field.
         """
 
-        return np.loadtxt(fileName)
+        return np.loadtxt(fileName).T
 
     @staticmethod
-    def cellMode(fields: np.ndarray, coeffs: np.ndarray) -> np.ndarray:
+    def cellBasedModes(fields: np.ndarray, coeffs: np.ndarray) -> np.ndarray:
         """
         Compute the cell modes.
 
@@ -135,9 +139,13 @@ class faceMode:
 
         if coeffs.ndim == 1:
             raise ValueError("Coefficients must be a 2D array.")
-        return np.linalg.inv(coeffs) @ fields
+        if coeffs.shape[0] == coeffs.shape[1]:
+            return np.linalg.inv(coeffs) @ fields
+        else:
+            return np.linalg.pinv(coeffs) @ fields
 
-    def projection(self, field: np.ndarray) -> np.ndarray:
+    @staticmethod
+    def projection(field: np.ndarray, boundaryModes: np.ndarray) -> np.ndarray:
         """
         Project the field onto the modes.
 
@@ -152,8 +160,37 @@ class faceMode:
             The projected coefficients.
         """
         if field.ndim == 1:
-            return field.reshape(1, -1) @ self.boundaryModes.T
+            return field.reshape(1, -1) @ boundaryModes.T
         elif field.ndim == 2:
-            return field @ self.boundaryModes.T
+            return field @ boundaryModes.T
         else:
             raise ValueError("Field must be either 1D or 2D array.")
+        
+    def cellToBoundary(self, cellCoeffs: np.ndarray) -> np.ndarray:
+        """
+        Convert cell coefficients to boundary coefficients.
+
+        Parameters
+        ----------
+        cellCoeffs : np.ndarray
+            The cell coefficients.
+
+        Returns
+        -------
+        np.ndarray
+            The boundary coefficients.
+        """
+
+        if cellCoeffs.ndim == 1:
+            rank = cellCoeffs.shape[0]
+            cellCoeffs = cellCoeffs.reshape(1, -1)
+            field = cellCoeffs @ self.cellBasedModes[:rank, :]
+            boundaryCoeffs = self.projection(field, self.boundaryModes)
+            return boundaryCoeffs
+        elif cellCoeffs.ndim == 2:
+            rank = cellCoeffs.shape[1]
+            field = cellCoeffs @ self.cellBasedModes[:rank, :]
+            boundaryCoeffs = self.projection(field, self.boundaryModes)
+            return boundaryCoeffs
+        else:
+            raise ValueError("cellCoeffs must be either 1D or 2D array.")
