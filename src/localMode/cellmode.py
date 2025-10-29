@@ -13,10 +13,11 @@ class cellMode:
 
     def __init__(
         self,
-        caseName: str,
-        fieldName: str,
-        NUM_MODES: int,
-        dataType: str,
+        case_name: str,
+        field_name: str,
+        num_modes: int,
+        data_type: str,
+        coeffs: np.ndarray,
         parallel: bool = False,
     ):
         """
@@ -24,33 +25,58 @@ class cellMode:
 
         Parameters
         ----------
-        caseName : str
+        case_name : str
             The name of the case directory containing modes and coefficients.
-        fieldName : str
+        field_name : str
             The name of the field to be processed.
-        NUM_MODES : int
+        num_modes : int
             The number of modes to consider.
-        dataType : str
+        data_type : str
             The type of data (e.g., "scalar", "vector").
+        coeffs : np.ndarray
+            The coefficients for the modes.
         parallel : bool, optional
             Whether the openfoam data are saved in parallel, by default False.
         """
-        self.caseName = caseName
-        self.fieldName = fieldName
-        self.dataType = dataType
+        self.case_name = case_name
+        self.field_name = field_name
+        self.data_type = data_type
         self.parallel = parallel
-        self.NUM_MODES = NUM_MODES
+        self.num_modes = num_modes
 
-        self.modes = self.readModes(
-            self.caseName, self.fieldName, self.dataType, self.NUM_MODES, self.parallel
+        self.modes = self.read_modes(
+            self.case_name,
+            self.field_name,
+            self.data_type,
+            self.num_modes,
+            self.parallel,
         )
 
+        if coeffs.shape[1] > self.num_modes:
+            Warning(
+                "Number of coefficient columns exceeds number of modes. Truncating coefficients."
+            )
+            coeffs = coeffs[:, : self.num_modes]
+        self.coeffs = coeffs
+
+        @property
+        def data_matrix(self) -> np.ndarray:
+            """
+            The data matrix where each column corresponds to a flattened field.
+
+            Returns
+            -------
+            np.ndarray
+                The data matrix.
+            """
+            return self._cal_data_matrix(self.modes)
+
     @staticmethod
-    def readModes(
-        caseName: str,
-        modeName: str,
-        dataType: str,
-        NUM_MODES: int,
+    def read_modes(
+        case_name: str,
+        mode_name: str,
+        data_type: str,
+        num_modes: int,
         parallel: bool,
     ) -> List[OFField]:
         """
@@ -58,11 +84,11 @@ class cellMode:
 
         Parameters
         ----------
-        caseName : str
+        case_name : str
             The name of the case directory to read.
-        modeName : str
+        mode_name : str
             The name of the mode to read.
-        dataType : str
+        data_type : str
             The type of data (e.g., "scalar", "vector").
         rankRange : Tuple[int, int]
             The range of ranks to read modes from (e.g., (1, 10)).
@@ -75,15 +101,19 @@ class cellMode:
             The read modes.
         """
         modes = []
-        for i in range(1, NUM_MODES + 1):
+        for i in range(1, num_modes + 1):
             modes.append(
-                OFField(f"{caseName}/{i}/{modeName}", dataType, True, parallel=parallel)
+                OFField(
+                    f"{case_name}/{i}/{mode_name}", data_type, True, parallel=parallel
+                )
             )
         return modes
 
     @staticmethod
     def reconstruct(
-        modes: List[OFField], coeffs: np.ndarray, rank: int
+        modes: List[OFField],
+        coeffs: np.ndarray,
+        rank: int,
     ) -> List[OFField] | OFField:
         """
         Reconstruct the fields using the modes and coefficients.
@@ -116,26 +146,26 @@ class cellMode:
         parallel = modes[0].parallel
 
         if parallel:
-            recOFFields = []
+            rec_fields = []
             for i in range(coeffs.shape[0]):
-                recOFFields.append(
-                    cellMode.reconstructField_parallel(modes, coeffs[i, :])
+                rec_fields.append(
+                    cellMode.reconstruct_field_parallel(modes, coeffs[i, :])
                 )
         else:
-            recOFFields = []
+            rec_fields = []
             for i in range(coeffs.shape[0]):
-                recOFFields.append(
+                rec_fields.append(
                     PODmodes._reconstructField_serial(modes, coeffs[i, :])
                 )
 
-        return recOFFields
+        return rec_fields
 
-    def writeReconstructed(
+    def write_reconstructed(
         self,
         coeffs: np.ndarray,
-        outputDir: str,
-        startTimeDir: int,
-        fieldName: str = "recField",
+        output_dir: str,
+        start_time_dir: int,
+        field_name: str = "recField",
     ) -> None:
         """
         Write the reconstructed fields to the specified output directory.
@@ -144,33 +174,33 @@ class cellMode:
         ----------
         coeffs : np.ndarray
             The coefficients for reconstruction.
-        outputDir : str
+        output_dir : str
             The directory to write the reconstructed fields to.
-        startTimeDir : int
+        start_time_dir : int
             The starting time directory for writing fields.
-        fieldName : str, optional
+        field_name : str, optional
             The name of the field to write, by default "recField".
         """
 
-        recOFFields = self.reconstruct(self.modes, coeffs, coeffs.shape[1])
+        rec_fields = self.reconstruct(self.modes, coeffs, coeffs.shape[1])
 
         if self.parallel:
-            for i, recOFField in enumerate(recOFFields):
-                recOFField.writeField(
-                    outputDir,
-                    startTimeDir + i,
-                    fieldName,
+            for i, rec_field in enumerate(rec_fields):
+                rec_field.writeField(
+                    output_dir,
+                    start_time_dir + i,
+                    field_name,
                 )
         else:
-            for i, recOFField in enumerate(recOFFields):
-                recOFField.writeField(
-                    outputDir,
-                    startTimeDir + i,
-                    fieldName,
+            for i, rec_field in enumerate(rec_fields):
+                rec_field.writeField(
+                    output_dir,
+                    start_time_dir + i,
+                    field_name,
                 )
 
     @staticmethod
-    def reconstructField_parallel(_modes: List[OFField], coeffs: np.ndarray):
+    def reconstruct_field_parallel(_modes: List[OFField], coeffs: np.ndarray):
         """
         Reconstruct the original field from the POD modes and coefficients (parallel version).
 
@@ -196,61 +226,61 @@ class cellMode:
         if coeffs.ndim != 1:
             raise ValueError("Coefficients should be a 1D array.")
 
-        recOFField = OFField.from_OFField(_modes[0])
+        rec_field = OFField.from_OFField(_modes[0])
         _num_processors = len(_modes[0].internalField)
-        internalFieldList = []
-        boundaryFieldList = []
-        for procN in range(_num_processors):
+        internal_field_list = []
+        boundary_field_list = []
+        for proc_n in range(_num_processors):
             # Reconstruct internal field
-            internalField = np.zeros(_modes[0].internalField[procN].shape)
+            internal_field = np.zeros(_modes[0].internalField[proc_n].shape)
             for i in range(rank):
-                internalField += coeffs[i] * _modes[i].internalField[procN]
-            internalFieldList.append(internalField)
+                internal_field += coeffs[i] * _modes[i].internalField[proc_n]
+            internal_field_list.append(internal_field)
 
             # Reconstruct boundary field
-            boundaryField = cellMode._copy_boundary(_modes[0].boundaryField[procN])
-            for patch in boundaryField.keys():
-                patch_type = boundaryField[patch]["type"]
+            boundary_field = cellMode._copy_boundary(_modes[0].boundaryField[proc_n])
+            for patch in boundary_field.keys():
+                patch_type = boundary_field[patch]["type"]
                 if (
                     patch_type == "fixedValue"
                     or patch_type == "fixedGradient"
                     or patch_type == "processor"
                     or patch_type == "calculated"
                 ):
-                    value_type = list(_modes[0].boundaryField[procN][patch].keys())[-1]
+                    value_type = list(_modes[0].boundaryField[proc_n][patch].keys())[-1]
                     if isinstance(
-                        _modes[0].boundaryField[procN][patch][value_type],
+                        _modes[0].boundaryField[proc_n][patch][value_type],
                         str,
                     ):
                         continue
                     elif isinstance(
-                        _modes[0].boundaryField[procN][patch][value_type],
+                        _modes[0].boundaryField[proc_n][patch][value_type],
                         np.ndarray,
                     ):
-                        boundaryField[patch][value_type] = np.zeros(
-                            _modes[0].boundaryField[procN][patch][value_type].shape
+                        boundary_field[patch][value_type] = np.zeros(
+                            _modes[0].boundaryField[proc_n][patch][value_type].shape
                         )
                         for i in range(rank):
-                            boundaryField[patch][value_type] += (
+                            boundary_field[patch][value_type] += (
                                 coeffs[i]
-                                * _modes[i].boundaryField[procN][patch][value_type]
+                                * _modes[i].boundaryField[proc_n][patch][value_type]
                             )
                     else:
                         raise ValueError(
                             "Unknown boundary field value type for fixedValue, fixedGradient, or processor."
                         )
 
-            boundaryFieldList.append(boundaryField)
+            boundary_field_list.append(boundary_field)
 
-        recOFField.internalField = internalFieldList
-        recOFField.boundaryField = boundaryFieldList
+        rec_field.internalField = internal_field_list
+        rec_field.boundaryField = boundary_field_list
 
-        return recOFField
+        return rec_field
 
     @staticmethod
-    def _copy_boundary(_boundaryField):
+    def _copy_boundary(_boundary_field):
         # BoundaryField: handle Dict[str, Dict[str, Any]] for serial, List[Dict[str, Dict[str, Any]]] for parallel
-        if isinstance(_boundaryField, dict):
+        if isinstance(_boundary_field, dict):
             return {
                 patch: {
                     key: (
@@ -260,9 +290,66 @@ class cellMode:
                     )
                     for key, value in info.items()
                 }
-                for patch, info in _boundaryField.items()
+                for patch, info in _boundary_field.items()
             }
         else:
-            raise ValueError(
-                "Unsupported type for boundaryField. It should be dict."
-            )
+            raise ValueError("Unsupported type for boundaryField. It should be dict.")
+
+    @staticmethod
+    def _cal_data_matrix(field_list: List[OFField]) -> np.ndarray:
+        """
+        Calculate the data matrix from a list of OFField objects.
+
+        Parameters
+        ----------
+        field_list : List[OFField]
+            The list of OFField objects.
+
+        Returns
+        -------
+        np.ndarray
+            The data matrix where each column corresponds to a flattened field.
+        """
+        if field_list[0].parallel:
+            data_matrix: np.ndarray = PODmodes._field2ndarray_parallel(field_list)
+        else:
+            data_matrix: np.ndarray = PODmodes._field2ndarray_serial(field_list)
+
+        return data_matrix
+
+    @staticmethod
+    def l2_norm(
+        field_a: List[OFField], field_b: List[OFField], relative: bool = True
+    ) -> np.ndarray:
+        """
+        Calculate the L2 norm between two lists of OFField objects.
+
+        Parameters
+        ----------
+        field_a : List[OFField]
+            The first list of OFField objects.
+        field_b : List[OFField]
+            The second list of OFField objects.
+        relative : bool, optional
+            Whether to calculate the relative L2 norm, by default True.
+
+        Returns
+        -------
+        np.ndarray
+            The L2 norm between corresponding fields in field_a and field_b.
+        """
+        if field_a[0].parallel != field_b[0].parallel:
+            raise ValueError("Both field lists must have the same parallel setting.")
+
+        if field_a[0].parallel:
+            data_matrix_a: np.ndarray = PODmodes._field2ndarray_parallel(field_a)
+            data_matrix_b: np.ndarray = PODmodes._field2ndarray_parallel(field_b)
+        else:
+            data_matrix_a: np.ndarray = PODmodes._field2ndarray_serial(field_a)
+            data_matrix_b: np.ndarray = PODmodes._field2ndarray_serial(field_b)
+
+        l2_norms: np.ndarray = np.linalg.norm(data_matrix_a - data_matrix_b, axis=1)
+        if relative:
+            l2_norms /= np.linalg.norm(data_matrix_b, axis=1)
+
+        return l2_norms

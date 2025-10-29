@@ -12,9 +12,9 @@ class faceMode:
 
     def __init__(
         self,
-        dataType: str,
-        fileName: list[str],
-        cellCoffsFile: str,
+        data_type: str,
+        file_name: list[str],
+        cell_coeffs: np.ndarray,
         POD_algo: str = "eigen",
     ):
         """
@@ -22,43 +22,42 @@ class faceMode:
 
         Parameters
         ----------
-        dataType : str
+        data_type : str
             The type of data (e.g., "scalar", "vector").
-        fileName : list[str]
+        file_name : list[str]
             The name of the file to read.
-        cellCoffsFile : str
-            The name of the cell coefficients file.
+        cell_coeffs : np.ndarray
+            The cell coefficients.
         POD_algo : str, optional
             The POD algorithm to use ('eigen' or 'svd'), by default "eigen".
         """
-        self.dataType = dataType
+        self.data_type = data_type
         self.POD_algo = POD_algo
-        self.fileName = fileName
-        self.cellCoffsFile = cellCoffsFile
+        self.file_name = file_name
+        self.cell_coeffs = cell_coeffs
 
-        if self.dataType not in ["scalar", "vector"]:
+        if self.data_type not in ["scalar", "vector"]:
             raise ValueError("dataType must be 'scalar' or 'vector'.")
 
         if self.POD_algo not in ["eigen", "svd"]:
             raise ValueError("POD_algo must be 'eigen' or 'svd'.")
 
-        self.fields = self.readFields(self.fileName, self.dataType)
-        self.boundaryModes, self.sv, self.boundaryCoeffs = self.boundaryModes(
+        self.fields = self.read_fields(self.file_name, self.data_type)
+        self.boundary_modes, self.sv, self.boundary_coeffs = self.boundary_modes(
             self.fields, self.POD_algo
         )
-        self.cellCoeffs = self.readCellCoeffs(self.cellCoffsFile)
-        self.cellBasedModes = self.cellBasedModes(self.fields, self.cellCoeffs)
+        self.cell_based_modes = self.cell_based_modes(self.fields, self.cell_coeffs)
 
     @staticmethod
-    def readFields(fileName: list[str], dataType: str) -> np.ndarray:
+    def read_fields(file_name: list[str], data_type: str) -> np.ndarray:
         """
         Read the fields using the modes and coefficients.
 
         Parameters
         ----------
-        fileName : list[str]
+        file_name : list[str]
             The name of the file to read.
-        dataType : str
+        data_type : str
             The type of data (e.g., "scalar", "vector").
 
         Returns
@@ -69,16 +68,16 @@ class faceMode:
 
         fields = []
 
-        for fname in fileName:
-            field = readList(fname, dataType)
-            if dataType == "vector":
+        for fname in file_name:
+            field = readList(fname, data_type)
+            if data_type == "vector":
                 field = field.T.flatten()
             fields.append(field)
 
         return np.array(fields)
 
     @staticmethod
-    def boundaryModes(field: np.ndarray, POD_algo: str) -> np.ndarray:
+    def boundary_modes(field: np.ndarray, POD_algo: str) -> np.ndarray:
         """
         Compute the boundary modes.
 
@@ -102,25 +101,7 @@ class faceMode:
         return PODmodes.reduction(field, POD_algo)
 
     @staticmethod
-    def readCellCoeffs(fileName: str) -> np.ndarray:
-        """
-        Read the cell coefficients from a file.
-
-        Parameters
-        ----------
-        fileName : str
-            The name of the file to read.
-
-        Returns
-        -------
-        np.ndarray
-            The read cell coefficients. Each row corresponds to a set of coefficients for one field.
-        """
-
-        return np.loadtxt(fileName).T
-
-    @staticmethod
-    def cellBasedModes(fields: np.ndarray, coeffs: np.ndarray) -> np.ndarray:
+    def cell_based_modes(fields: np.ndarray, coeffs: np.ndarray) -> np.ndarray:
         """
         Compute the cell modes.
 
@@ -145,7 +126,7 @@ class faceMode:
             return np.linalg.pinv(coeffs) @ fields
 
     @staticmethod
-    def projection(field: np.ndarray, boundaryModes: np.ndarray) -> np.ndarray:
+    def projection(field: np.ndarray, boundary_modes: np.ndarray) -> np.ndarray:
         """
         Project the field onto the modes.
 
@@ -160,19 +141,19 @@ class faceMode:
             The projected coefficients.
         """
         if field.ndim == 1:
-            return field.reshape(1, -1) @ boundaryModes.T
+            return field.reshape(1, -1) @ boundary_modes.T
         elif field.ndim == 2:
-            return field @ boundaryModes.T
+            return field @ boundary_modes.T
         else:
             raise ValueError("Field must be either 1D or 2D array.")
         
-    def cellToBoundary(self, cellCoeffs: np.ndarray) -> np.ndarray:
+    def cell_to_boundary(self, cell_coeffs: np.ndarray) -> np.ndarray:
         """
         Convert cell coefficients to boundary coefficients.
 
         Parameters
         ----------
-        cellCoeffs : np.ndarray
+        cell_coeffs : np.ndarray
             The cell coefficients.
 
         Returns
@@ -181,16 +162,16 @@ class faceMode:
             The boundary coefficients.
         """
 
-        if cellCoeffs.ndim == 1:
-            rank = cellCoeffs.shape[0]
-            cellCoeffs = cellCoeffs.reshape(1, -1)
-            field = cellCoeffs @ self.cellBasedModes[:rank, :]
-            boundaryCoeffs = self.projection(field, self.boundaryModes)
-            return boundaryCoeffs
-        elif cellCoeffs.ndim == 2:
-            rank = cellCoeffs.shape[1]
-            field = cellCoeffs @ self.cellBasedModes[:rank, :]
-            boundaryCoeffs = self.projection(field, self.boundaryModes)
-            return boundaryCoeffs
+        if cell_coeffs.ndim == 1:
+            rank = cell_coeffs.shape[0]
+            cell_coeffs = cell_coeffs.reshape(1, -1)
+            field = cell_coeffs @ self.cell_based_modes[:rank, :]
+            boundary_coeffs = self.projection(field, self.boundary_modes)
+            return boundary_coeffs
+        elif cell_coeffs.ndim == 2:
+            rank = cell_coeffs.shape[1]
+            field = cell_coeffs @ self.cell_based_modes[:rank, :]
+            boundary_coeffs = self.projection(field, self.boundary_modes)
+            return boundary_coeffs
         else:
-            raise ValueError("cellCoeffs must be either 1D or 2D array.")
+            raise ValueError("cell_coeffs must be either 1D or 2D array.")
