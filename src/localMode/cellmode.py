@@ -200,7 +200,9 @@ class cellMode:
                 )
 
     @staticmethod
-    def reconstruct_field_parallel(_modes: List[OFField], coeffs: np.ndarray) -> OFField:
+    def reconstruct_field_parallel(
+        _modes: List[OFField], coeffs: np.ndarray
+    ) -> OFField:
         """
         Reconstruct the original field from the POD modes and coefficients (parallel version).
 
@@ -238,7 +240,9 @@ class cellMode:
             internal_field_list.append(internal_field)
 
             # Reconstruct boundary field
-            boundary_field: Dict[str, Dict[str, Any]] = cellMode._copy_boundary(_modes[0].boundaryField[proc_n])
+            boundary_field: Dict[str, Dict[str, Any]] = cellMode._copy_boundary(
+                _modes[0].boundaryField[proc_n]
+            )
             for patch in boundary_field.keys():
                 patch_type = boundary_field[patch]["type"]
                 if (
@@ -257,14 +261,46 @@ class cellMode:
                         _modes[0].boundaryField[proc_n][patch][value_type],
                         np.ndarray,
                     ):
-                        boundary_field[patch][value_type] = np.zeros(
-                            _modes[0].boundaryField[proc_n][patch][value_type].shape
+                        # check shape consistency
+                        shape_list = np.array(
+                            [
+                                _modes[i].boundaryField[proc_n][patch][value_type].size
+                                for i in range(rank)
+                            ]
                         )
-                        for i in range(rank):
-                            boundary_field[patch][value_type] += (
-                                coeffs[i]
-                                * _modes[i].boundaryField[proc_n][patch][value_type]
+                        mode_uniform_indices: Optional[np.ndarray] = None
+                        if not np.all(shape_list == shape_list[0]):
+                            Warning(
+                                f"There are modes with uniform boundary field shapes different from others for patch {patch}."
                             )
+                            boundary_field[patch][value_type] = np.zeros(
+                                (np.max(shape_list) // np.min(shape_list), np.min(shape_list))
+                            )
+                            mode_uniform_indices = np.where(
+                                shape_list != np.max(shape_list)
+                            )
+                        else:
+                            boundary_field[patch][value_type] = np.zeros(
+                                _modes[0].boundaryField[proc_n][patch][value_type].shape
+                            )
+
+                        for i in range(rank):
+                            if (
+                                mode_uniform_indices is not None
+                                and i in mode_uniform_indices[0]
+                            ):
+                                boundary_field[patch][value_type] += coeffs[
+                                    i
+                                ] * np.stack(
+                                    [_modes[i].boundaryField[proc_n][patch][value_type]]
+                                    * (np.max(shape_list) // shape_list[i]),
+                                    axis=0,
+                                )
+                            else:
+                                boundary_field[patch][value_type] += (
+                                    coeffs[i]
+                                    * _modes[i].boundaryField[proc_n][patch][value_type]
+                                )
                     else:
                         raise ValueError(
                             "Unknown boundary field value type for fixedValue, fixedGradient, or processor."
