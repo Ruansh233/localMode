@@ -31,10 +31,10 @@ class faceMode:
         POD_algo : str, optional
             The POD algorithm to use ('eigen' or 'svd'), by default "eigen".
         """
-        self.data_type = data_type
-        self.POD_algo = POD_algo
-        self.file_name = file_name
-        self.cell_coeffs = cell_coeffs
+        self.data_type: str = data_type
+        self.POD_algo: str = POD_algo
+        self.file_name: list[str] = file_name
+        self.cell_coeffs: np.ndarray = cell_coeffs
 
         if self.data_type not in ["scalar", "vector"]:
             raise ValueError("dataType must be 'scalar' or 'vector'.")
@@ -42,11 +42,14 @@ class faceMode:
         if self.POD_algo not in ["eigen", "svd"]:
             raise ValueError("POD_algo must be 'eigen' or 'svd'.")
 
-        self.fields = self.read_fields(self.file_name, self.data_type)
+        self.fields: np.ndarray = self.read_fields(self.file_name, self.data_type)
+        self.boundary_modes: np.ndarray
+        self.sv: np.ndarray
+        self.boundary_coeffs: np.ndarray
         self.boundary_modes, self.sv, self.boundary_coeffs = self.boundary_modes(
             self.fields, self.POD_algo
         )
-        self.cell_based_modes = self.cell_based_modes(self.fields, self.cell_coeffs)
+        self.cell_based_modes: np.ndarray = self.cell_based_modes(self.fields, self.cell_coeffs)
 
     @staticmethod
     def read_fields(file_name: list[str], data_type: str) -> np.ndarray:
@@ -66,7 +69,7 @@ class faceMode:
             The read fields. Each row corresponds to one field.
         """
 
-        fields = []
+        fields: List[np.ndarray] = []
 
         for fname in file_name:
             field = readList(fname, data_type)
@@ -77,7 +80,7 @@ class faceMode:
         return np.array(fields)
 
     @staticmethod
-    def boundary_modes(field: np.ndarray, POD_algo: str) -> np.ndarray:
+    def boundary_modes(field: np.ndarray, POD_algo: str) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Compute the boundary modes.
 
@@ -163,15 +166,15 @@ class faceMode:
         """
 
         if cell_coeffs.ndim == 1:
-            rank = cell_coeffs.shape[0]
+            rank: int = cell_coeffs.shape[0]
             cell_coeffs = cell_coeffs.reshape(1, -1)
-            field = cell_coeffs @ self.cell_based_modes[:rank, :]
-            boundary_coeffs = self.projection(field, self.boundary_modes)
+            field: np.ndarray = cell_coeffs @ self.cell_based_modes[:rank, :]
+            boundary_coeffs: np.ndarray = self.projection(field, self.boundary_modes)
             return boundary_coeffs
         elif cell_coeffs.ndim == 2:
-            rank = cell_coeffs.shape[1]
-            field = cell_coeffs @ self.cell_based_modes[:rank, :]
-            boundary_coeffs = self.projection(field, self.boundary_modes)
+            rank: int = cell_coeffs.shape[1]
+            field: np.ndarray = cell_coeffs @ self.cell_based_modes[:rank, :]
+            boundary_coeffs: np.ndarray = self.projection(field, self.boundary_modes)
             return boundary_coeffs
         else:
             raise ValueError("cell_coeffs must be either 1D or 2D array.")

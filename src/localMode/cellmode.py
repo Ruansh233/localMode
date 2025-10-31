@@ -38,13 +38,13 @@ class cellMode:
         parallel : bool, optional
             Whether the openfoam data are saved in parallel, by default False.
         """
-        self.case_name = case_name
-        self.field_name = field_name
-        self.data_type = data_type
-        self.parallel = parallel
-        self.num_modes = num_modes
+        self.case_name: str = case_name
+        self.field_name: str = field_name
+        self.data_type: str = data_type
+        self.parallel: bool = parallel
+        self.num_modes: int = num_modes
 
-        self.modes = self.read_modes(
+        self.modes: List[OFField] = self.read_modes(
             self.case_name,
             self.field_name,
             self.data_type,
@@ -57,7 +57,7 @@ class cellMode:
                 "Number of coefficient columns exceeds number of modes. Truncating coefficients."
             )
             coeffs = coeffs[:, : self.num_modes]
-        self.coeffs = coeffs
+        self.coeffs: np.ndarray = coeffs
 
         @property
         def data_matrix(self) -> np.ndarray:
@@ -100,7 +100,7 @@ class cellMode:
         List[OFField]
             The read modes.
         """
-        modes = []
+        modes: List[OFField] = []
         for i in range(1, num_modes + 1):
             modes.append(
                 OFField(
@@ -146,13 +146,13 @@ class cellMode:
         parallel = modes[0].parallel
 
         if parallel:
-            rec_fields = []
+            rec_fields: List[OFField] = []
             for i in range(coeffs.shape[0]):
                 rec_fields.append(
                     cellMode.reconstruct_field_parallel(modes, coeffs[i, :])
                 )
         else:
-            rec_fields = []
+            rec_fields: List[OFField] = []
             for i in range(coeffs.shape[0]):
                 rec_fields.append(
                     PODmodes._reconstructField_serial(modes, coeffs[i, :])
@@ -200,7 +200,7 @@ class cellMode:
                 )
 
     @staticmethod
-    def reconstruct_field_parallel(_modes: List[OFField], coeffs: np.ndarray):
+    def reconstruct_field_parallel(_modes: List[OFField], coeffs: np.ndarray) -> OFField:
         """
         Reconstruct the original field from the POD modes and coefficients (parallel version).
 
@@ -220,25 +220,25 @@ class cellMode:
         ValueError
             If rank is greater than the number of modes.
         """
-        rank = coeffs.shape[0]
+        rank: int = coeffs.shape[0]
         if rank > len(_modes):
             raise ValueError("Rank cannot be greater than the number of modes.")
         if coeffs.ndim != 1:
             raise ValueError("Coefficients should be a 1D array.")
 
-        rec_field = OFField.from_OFField(_modes[0])
-        _num_processors = len(_modes[0].internalField)
-        internal_field_list = []
-        boundary_field_list = []
+        rec_field: OFField = OFField.from_OFField(_modes[0])
+        _num_processors: int = len(_modes[0].internalField)
+        internal_field_list: List[np.ndarray] = []
+        boundary_field_list: List[Dict[str, Dict[str, Any]]] = []
         for proc_n in range(_num_processors):
             # Reconstruct internal field
-            internal_field = np.zeros(_modes[0].internalField[proc_n].shape)
+            internal_field: np.ndarray = np.zeros(_modes[0].internalField[proc_n].shape)
             for i in range(rank):
                 internal_field += coeffs[i] * _modes[i].internalField[proc_n]
             internal_field_list.append(internal_field)
 
             # Reconstruct boundary field
-            boundary_field = cellMode._copy_boundary(_modes[0].boundaryField[proc_n])
+            boundary_field: Dict[str, Dict[str, Any]] = cellMode._copy_boundary(_modes[0].boundaryField[proc_n])
             for patch in boundary_field.keys():
                 patch_type = boundary_field[patch]["type"]
                 if (
@@ -278,7 +278,7 @@ class cellMode:
         return rec_field
 
     @staticmethod
-    def _copy_boundary(_boundary_field):
+    def _copy_boundary(_boundary_field) -> Dict[str, Dict[str, Any]]:
         # BoundaryField: handle Dict[str, Dict[str, Any]] for serial, List[Dict[str, Dict[str, Any]]] for parallel
         if isinstance(_boundary_field, dict):
             return {
