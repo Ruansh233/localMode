@@ -376,6 +376,9 @@ class cellMode:
         """
         if field_a[0].parallel != field_b[0].parallel:
             raise ValueError("Both field lists must have the same parallel setting.")
+        
+        if len(field_a) != len(field_b):
+            raise ValueError("Both field lists must have the same length.")
 
         if field_a[0].parallel:
             data_matrix_a: np.ndarray = PODmodes._field2ndarray_parallel(field_a)
