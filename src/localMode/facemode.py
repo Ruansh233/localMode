@@ -14,7 +14,7 @@ class faceMode:
         self,
         data_type: str,
         file_name: list[str],
-        cell_coeffs: np.ndarray,
+        cell_coeffs: np.ndarray = None,
         POD_algo: str = "eigen",
     ):
         """
@@ -27,7 +27,7 @@ class faceMode:
         file_name : list[str]
             The name of the file to read.
         cell_coeffs : np.ndarray
-            The cell coefficients.
+            The cell coefficients. By default, None.
         POD_algo : str, optional
             The POD algorithm to use ('eigen' or 'svd'), by default "eigen".
         """
@@ -49,7 +49,8 @@ class faceMode:
         self.boundary_modes, self.sv, self.boundary_coeffs = self.boundary_reduction(
             self.fields, self.POD_algo
         )
-        self.cell_based_modes: np.ndarray = self.cell_based_projection(self.fields, self.cell_coeffs)
+        if self.cell_coeffs is not None:
+            self.cell_based_modes: np.ndarray = self.cell_based_projection(self.fields, self.cell_coeffs)
 
     @staticmethod
     def read_fields(file_name: list[str], data_type: str) -> np.ndarray:
@@ -169,12 +170,12 @@ class faceMode:
             rank: int = cell_coeffs.shape[0]
             cell_coeffs = cell_coeffs.reshape(1, -1)
             field: np.ndarray = cell_coeffs @ self.cell_based_modes[:rank, :]
-            boundary_coeffs: np.ndarray = self.projection(field, self.boundary_modes)
+            boundary_coeffs: np.ndarray = self.projection(field, self.boundary_modes[:rank, :])
             return boundary_coeffs
         elif cell_coeffs.ndim == 2:
             rank: int = cell_coeffs.shape[1]
             field: np.ndarray = cell_coeffs @ self.cell_based_modes[:rank, :]
-            boundary_coeffs: np.ndarray = self.projection(field, self.boundary_modes)
+            boundary_coeffs: np.ndarray = self.projection(field, self.boundary_modes[:rank, :])
             return boundary_coeffs
         else:
             raise ValueError("cell_coeffs must be either 1D or 2D array.")
