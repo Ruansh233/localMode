@@ -46,10 +46,10 @@ class faceMode:
         self.boundary_modes: np.ndarray
         self.sv: np.ndarray
         self.boundary_coeffs: np.ndarray
-        self.boundary_modes, self.sv, self.boundary_coeffs = self.boundary_modes(
+        self.boundary_modes, self.sv, self.boundary_coeffs = self.boundary_reduction(
             self.fields, self.POD_algo
         )
-        self.cell_based_modes: np.ndarray = self.cell_based_modes(self.fields, self.cell_coeffs)
+        self.cell_based_modes: np.ndarray = self.cell_based_projection(self.fields, self.cell_coeffs)
 
     @staticmethod
     def read_fields(file_name: list[str], data_type: str) -> np.ndarray:
@@ -80,7 +80,7 @@ class faceMode:
         return np.array(fields)
 
     @staticmethod
-    def boundary_modes(field: np.ndarray, POD_algo: str) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def boundary_reduction(field: np.ndarray, POD_algo: str) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Compute the boundary modes.
 
@@ -104,7 +104,7 @@ class faceMode:
         return PODmodes.reduction(field, POD_algo)
 
     @staticmethod
-    def cell_based_modes(fields: np.ndarray, coeffs: np.ndarray) -> np.ndarray:
+    def cell_based_projection(fields: np.ndarray, coeffs: np.ndarray) -> np.ndarray:
         """
         Compute the cell modes.
 
