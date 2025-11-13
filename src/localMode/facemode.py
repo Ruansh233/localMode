@@ -51,7 +51,9 @@ class faceMode:
         )
         self.cell_based_modes: np.ndarray
         if self.cell_coeffs is not None:
-            self.cell_based_modes: np.ndarray = self.cell_based_projection(self.fields, self.cell_coeffs)
+            self.cell_based_modes: np.ndarray = self.cell_based_projection(
+                self.fields, self.cell_coeffs
+            )
 
     @staticmethod
     def read_fields(file_name: list[str], data_type: str) -> np.ndarray:
@@ -82,7 +84,9 @@ class faceMode:
         return np.array(fields)
 
     @staticmethod
-    def boundary_reduction(field: np.ndarray, POD_algo: str) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def boundary_reduction(
+        field: np.ndarray, POD_algo: str
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Compute the boundary modes.
 
@@ -151,10 +155,57 @@ class faceMode:
             return field @ boundary_modes.T
         else:
             raise ValueError("Field must be either 1D or 2D array.")
-        
+
     def cell_to_boundary(self, cell_coeffs: np.ndarray) -> np.ndarray:
         """
         Convert cell coefficients to boundary coefficients.
+
+        Parameters
+        ----------
+        cell_coeffs : np.ndarray
+            The cell coefficients.
+
+        Returns
+        -------
+        np.ndarray
+            The boundary coefficients.
+        """
+
+        if hasattr(self, "PODI"):
+            return self.PODI.predict(cell_coeffs)
+        else:
+            if hasattr(self, "cell_based_modes"):
+                return self.cell_to_boundary_projection(cell_coeffs)
+            else:
+                raise AttributeError(
+                    "Either PODI model or cell_based_modes must be available."
+                )
+
+    def cell_to_boundary_PODI(self, cell_coeffs: np.ndarray, boundary_coeffs: np.ndarray, PODI):
+        """
+        Convert cell coefficients to boundary coefficients by PODI model.
+
+        Parameters
+        ----------
+        cell_coeffs : np.ndarray
+            The cell coefficients.
+        boundary_coeffs : np.ndarray
+            The boundary coefficients.
+        PODI : PODImodels
+            The PODI model.
+
+        Returns
+        -------
+        np.ndarray
+            The converted boundary coefficients.
+        """
+
+        self.PODI = PODI
+        self.PODI.fit(cell_coeffs, boundary_coeffs)
+
+    def cell_to_boundary_projection(self, cell_coeffs: np.ndarray) -> np.ndarray:
+        """
+        Convert cell coefficients to boundary coefficients by projecting the reconstructed field.
 
         Parameters
         ----------
@@ -171,12 +222,16 @@ class faceMode:
             rank: int = cell_coeffs.shape[0]
             cell_coeffs = cell_coeffs.reshape(1, -1)
             field: np.ndarray = cell_coeffs @ self.cell_based_modes[:rank, :]
-            boundary_coeffs: np.ndarray = self.projection(field, self.boundary_modes[:rank, :])
+            boundary_coeffs: np.ndarray = self.projection(
+                field, self.boundary_modes[:rank, :]
+            )
             return boundary_coeffs
         elif cell_coeffs.ndim == 2:
             rank: int = cell_coeffs.shape[1]
             field: np.ndarray = cell_coeffs @ self.cell_based_modes[:rank, :]
-            boundary_coeffs: np.ndarray = self.projection(field, self.boundary_modes[:rank, :])
+            boundary_coeffs: np.ndarray = self.projection(
+                field, self.boundary_modes[:rank, :]
+            )
             return boundary_coeffs
         else:
             raise ValueError("cell_coeffs must be either 1D or 2D array.")
