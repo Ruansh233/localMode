@@ -355,17 +355,17 @@ class cellMode:
 
     @staticmethod
     def l2_norm(
-        field_a: List[OFField], field_b: List[OFField], relative: bool = True
+        field_a: OFField, field_b: OFField, relative: bool = True
     ) -> np.ndarray:
         """
         Calculate the L2 norm between two lists of OFField objects.
 
         Parameters
         ----------
-        field_a : List[OFField]
-            The first list of OFField objects.
-        field_b : List[OFField]
-            The second list of OFField objects.
+        field_a : OFField
+            The first OFField object.
+        field_b : OFField
+            The second OFField object.
         relative : bool, optional
             Whether to calculate the relative L2 norm, by default True.
 
@@ -374,21 +374,21 @@ class cellMode:
         np.ndarray
             The L2 norm between corresponding fields in field_a and field_b.
         """
-        if field_a[0].parallel != field_b[0].parallel:
-            raise ValueError("Both field lists must have the same parallel setting.")
+        if field_a.parallel != field_b.parallel:
+            raise ValueError("Both fields must have the same parallel setting.")
         
         if len(field_a) != len(field_b):
-            raise ValueError("Both field lists must have the same length.")
+            raise ValueError("Both fields must have the same length.")
 
-        if field_a[0].parallel:
-            data_matrix_a: np.ndarray = PODmodes._field2ndarray_parallel(field_a)
-            data_matrix_b: np.ndarray = PODmodes._field2ndarray_parallel(field_b)
+        if field_a.parallel:
+            data_matrix_a: np.ndarray = PODmodes._field2ndarray_parallel([field_a])
+            data_matrix_b: np.ndarray = PODmodes._field2ndarray_parallel([field_b])
         else:
-            data_matrix_a: np.ndarray = PODmodes._field2ndarray_serial(field_a)
-            data_matrix_b: np.ndarray = PODmodes._field2ndarray_serial(field_b)
+            data_matrix_a: np.ndarray = PODmodes._field2ndarray_serial([field_a])
+            data_matrix_b: np.ndarray = PODmodes._field2ndarray_serial([field_b])
 
-        l2_norms: np.ndarray = np.linalg.norm(data_matrix_a - data_matrix_b, axis=1)
+        l2_norms: np.ndarray = np.linalg.norm(data_matrix_a - data_matrix_b)
         if relative:
-            l2_norms /= np.linalg.norm(data_matrix_b, axis=1)
+            l2_norms /= np.linalg.norm(data_matrix_b)
 
         return l2_norms
