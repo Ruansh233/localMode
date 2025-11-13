@@ -274,7 +274,10 @@ class cellMode:
                                 f"There are modes with uniform boundary field shapes different from others for patch {patch}."
                             )
                             boundary_field[patch][value_type] = np.zeros(
-                                (np.max(shape_list) // np.min(shape_list), np.min(shape_list))
+                                (
+                                    np.max(shape_list) // np.min(shape_list),
+                                    np.min(shape_list),
+                                )
                             )
                             mode_uniform_indices = np.where(
                                 shape_list != np.max(shape_list)
@@ -376,7 +379,7 @@ class cellMode:
         """
         if field_a.parallel != field_b.parallel:
             raise ValueError("Both fields must have the same parallel setting.")
-        
+
         if len(field_a) != len(field_b):
             raise ValueError("Both fields must have the same length.")
 
@@ -392,3 +395,52 @@ class cellMode:
             l2_norms /= np.linalg.norm(data_matrix_b)
 
         return l2_norms
+
+    @staticmethod
+    def projection_erros(
+        modes: List[OFField], fields: List[OFField], rank: int, relative: bool = True
+    ) -> np.ndarray:
+        """
+        Calculate the projection errors of fields onto modes up to a given rank.
+
+        Parameters
+        ----------
+        modes : List[OFField]
+            The POD modes.
+        fields : List[OFField]
+            The original fields to project.
+        rank : int
+            The rank of the modes to use for projection.
+        relative : bool, optional
+            Whether to calculate relative projection errors, by default True.
+
+        Returns
+        -------
+        np.ndarray
+            The projection errors for each field.
+        """
+        if modes[0].parallel != fields[0].parallel:
+            raise ValueError("Both fields must have the same parallel setting.")
+
+        if len(modes) < rank:
+            raise ValueError("Number of modes must be greater than or equal to rank.")
+
+        if modes[0].parallel:
+            data_matrix_modes: np.ndarray = PODmodes._field2ndarray_parallel(modes)
+            data_matrix_fields: np.ndarray = PODmodes._field2ndarray_parallel(fields)
+        else:
+            data_matrix_modes: np.ndarray = PODmodes._field2ndarray_serial(modes)
+            data_matrix_fields: np.ndarray = PODmodes._field2ndarray_serial(fields)
+
+        projection_coeffs: np.ndarray = np.linalg.norm(
+            data_matrix_fields
+            - data_matrix_fields
+            @ data_matrix_modes[:rank, :].T
+            @ data_matrix_modes[:rank, :],
+            axis=1,
+        )
+
+        if relative:
+            projection_coeffs /= np.linalg.norm(data_matrix_fields, axis=1)
+
+        return projection_coeffs
