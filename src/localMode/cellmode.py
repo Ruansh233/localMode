@@ -59,17 +59,17 @@ class cellMode:
             coeffs = coeffs[:, : self.num_modes]
         self.coeffs: np.ndarray = coeffs
 
-        @property
-        def data_matrix(self) -> np.ndarray:
-            """
-            The data matrix where each column corresponds to a flattened field.
+    @property
+    def data_matrix(self) -> np.ndarray:
+        """
+        The data matrix where each column corresponds to a flattened field.
 
-            Returns
-            -------
-            np.ndarray
-                The data matrix.
-            """
-            return self._cal_data_matrix(self.modes)
+        Returns
+        -------
+        np.ndarray
+            The data matrix.
+        """
+        return self._cal_data_matrix(self.modes)
 
     @staticmethod
     def read_modes(
@@ -380,9 +380,6 @@ class cellMode:
         if field_a.parallel != field_b.parallel:
             raise ValueError("Both fields must have the same parallel setting.")
 
-        if len(field_a) != len(field_b):
-            raise ValueError("Both fields must have the same length.")
-
         if field_a.parallel:
             data_matrix_a: np.ndarray = PODmodes._field2ndarray_parallel([field_a])
             data_matrix_b: np.ndarray = PODmodes._field2ndarray_parallel([field_b])
@@ -432,7 +429,7 @@ class cellMode:
             data_matrix_modes: np.ndarray = PODmodes._field2ndarray_serial(modes)
             data_matrix_fields: np.ndarray = PODmodes._field2ndarray_serial(fields)
 
-        projection_coeffs: np.ndarray = np.linalg.norm(
+        projection_errors: np.ndarray = np.linalg.norm(
             data_matrix_fields
             - data_matrix_fields
             @ data_matrix_modes[:rank, :].T
@@ -441,6 +438,6 @@ class cellMode:
         )
 
         if relative:
-            projection_coeffs /= np.linalg.norm(data_matrix_fields, axis=1)
+            projection_errors /= np.linalg.norm(data_matrix_fields, axis=1)
 
-        return projection_coeffs
+        return projection_errors
