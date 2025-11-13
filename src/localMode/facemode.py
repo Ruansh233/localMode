@@ -49,6 +49,7 @@ class faceMode:
         self.boundary_modes, self.sv, self.boundary_coeffs = self.boundary_reduction(
             self.fields, self.POD_algo
         )
+        self.cell_based_modes: np.ndarray
         if self.cell_coeffs is not None:
             self.cell_based_modes: np.ndarray = self.cell_based_projection(self.fields, self.cell_coeffs)
 
